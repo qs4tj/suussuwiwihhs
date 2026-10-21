@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>دمج ومعالجة ملفات PDF</title>
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background: #f1f5f9;
+      padding: 16px;
+      color: #1e293b;
+    }
+    .card {
+      background: #ffffff;
+      padding: 24px;
+      border-radius: 16px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+      max-width: 520px;
+      width: 100%;
+    }
+    h3 {
+      margin: 0 0 18px;
+      text-align: center;
+      font-size: 19px;
+      color: #0f172a;
+    }
+    .section-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin: 18px 0 8px;
+      color: #334155;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .upload-zone {
+      display: block;
+      border: 2px dashed #94a3b8;
+      background: #f8fafc;
+      padding: 14px;
+      border-radius: 10px;
+      text-align: center;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      color: #2563eb;
+      transition: all 0.2s;
+    }
+    .upload-zone:hover {
+      border-color: #2563eb;
+      background: #eff6ff;
+    }
+    .upload-zone input { display: none; }
+
+    /* قائمة ملفات PDF والترتيب */
+    .file-list {
+      margin-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 230px;
+      overflow-y: auto;
+    }
+    .file-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .file-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow: hidden;
+    }
+    .badge {
+      background: #2563eb;
+      color: #fff;
+      font-weight: 700;
+      font-size: 12px;
+      min-width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .file-name {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 210px;
+      font-weight: 500;
+    }
+    .file-pages {
+      font-size: 11px;
+      color: #64748b;
+      white-space: nowrap;
+    }
+    .file-actions {
+      display: flex;
+      gap: 4px;
+    }
+    .icon-btn {
+      background: #e2e8f0;
+      border: none;
+      color: #334155;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+    .icon-btn:hover:not(:disabled) { background: #cbd5e1; }
+    .icon-btn:disabled { opacity: 0.4; cursor: default; }
+    .icon-btn.delete { background: #fee2e2; color: #dc2626; }
+    .icon-btn.delete:hover { background: #fecaca; }
+
+    /* خيارات الإدراج */
+    .options-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .option-card {
+      border: 2px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px;
+      text-align: center;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.2s;
+      user-select: none;
+    }
+    .option-card input { display: none; }
+    .option-card.active {
+      border-color: #2563eb;
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+    .option-card.full-width {
+      grid-column: span 2;
+    }
+
+    /* معاينة الصورة المرفوعة */
+    .image-picker-box {
+      margin-top: 10px;
+      padding: 12px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      text-align: center;
+    }
+    .image-picker-box img {
+      max-height: 130px;
+      max-width: 100%;
+      border-radius: 6px;
+      display: none;
+      margin: 10px auto 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    .img-meta {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 4px;
+    }
+
+    select {
+      width: 100%;
+      padding: 10px 12px;
+      margin-top: 8px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 13px;
+      background: #fff;
+      color: #1e293b;
+      font-weight: 500;
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      padding: 10px;
+      background: #f8fafc;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .checkbox-row input {
+      width: 17px;
+      height: 17px;
+      accent-color: #2563eb;
+      cursor: pointer;
+    }
+
+    button.main-btn {
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      padding: 14px 20px;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 18px;
+      width: 100%;
+      transition: background 0.2s;
+    }
+    button.main-btn:hover { background: #1d4ed8; }
+    button.main-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+
+    /* شريط التقدم للملفات الكبيرة */
+    .progress-wrap {
+      display: none;
+      margin-top: 12px;
+      background: #e2e8f0;
+      border-radius: 999px;
+      height: 8px;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: #2563eb;
+      transition: width 0.15s ease;
+    }
+
+    #status {
+      margin-top: 14px;
+      font-size: 13px;
+      color: #334155;
+      text-align: center;
+      line-height: 1.6;
+      background: #f8fafc;
+      padding: 10px;
+      border-radius: 8px;
+    }
+
+    /* إشعار التنزيل المباشر بعد انتهاء التحويل */
+    .download-notice {
+      display: none;
+      margin-top: 14px;
+      padding: 14px;
+      background: #ecfdf5;
+      border: 2px solid #10b981;
+      border-radius: 12px;
+      text-align: center;
+      animation: fadeIn 0.25s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .download-notice-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #065f46;
+      margin-bottom: 4px;
+    }
+    .download-notice-meta {
+      font-size: 12px;
+      color: #047857;
+      margin-bottom: 10px;
+    }
+    .download-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: #059669;
+      color: #ffffff;
+      border: none;
+      padding: 12px 18px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      width: 100%;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+    .download-btn:hover {
+      background: #047857;
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h3>دمج ملفات PDF وإدراج الصفحات</h3>
+
+  <!-- 1. قسم رفع وترتيب ملفات PDF -->
+  <div class="section-title">
+    <span>1. ملفات الـ PDF (رتبها كما تريد)</span>
+    <span id="totalSummary" style="font-size:12px; color:#2563eb;"></span>
+  </div>
+
+  <label class="upload-zone">
+    + إضافة ملف أو عدة ملفات PDF
+    <input type="file" id="pdfInput" accept="application/pdf,.pdf" multiple onchange="handlePdfSelection(event)" />
+  </label>
+
+  <div id="fileList" class="file-list"></div>
+
+  <label class="checkbox-row">
+    <input type="checkbox" id="balancePdfWidths" checked />
+    <span>موازنة عرض جميع صفحات الـ PDF مع الصفحة الأعرض (يحفظ أبعاد العرض والـ Landscape)</span>
+  </label>
+
+  <!-- 2. قسم اختيار نوع الصفحة المضافة بعد كل صفحة -->
+  <div class="section-title">
+    <span>2. ماذا تريد أن يوضع بعد كل صفحة؟</span>
+  </div>
+
+  <div class="options-grid">
+    <label class="option-card active" id="optBlankCard" onclick="setInsertMode('blank')">
+      <input type="radio" name="insertMode" value="blank" checked />
+      📄 صفحة بيضاء فارغة
+    </label>
+
+    <label class="option-card" id="optImageCard" onclick="setInsertMode('image')">
+      <input type="radio" name="insertMode" value="image" />
+      🖼️ رفع صورة من الألبوم
+    </label>
+
+    <label class="option-card full-width" id="optNoneCard" onclick="setInsertMode('none')">
+      <input type="radio" name="insertMode" value="none" />
+      🔗 بدون إضافة صفحات (دمج ملفات الـ PDF بالترتيب فقط)
+    </label>
+  </div>
+
+  <!-- صندوق رفع الصورة من الألبوم -->
+  <div id="imagePickerContainer" class="image-picker-box" style="display: none;">
+    <label class="upload-zone" style="padding: 10px;">
+      اختر صورة من الألبوم بكامل جودتها
+      <input type="file" id="imgInput" accept="image/*" onchange="handleImageSelection(event)" />
+    </label>
+    <img id="imgPreview" alt="معاينة الصورة" />
+    <div id="imgMeta" class="img-meta">لم يتم اختيار صورة بعد</div>
+  </div>
+
+  <!-- 3. عدد وأبعاد الصفحة/الصورة المضافة -->
+  <div id="sizeModeContainer">
+    <div class="section-title">
+      <span>عدد الصفحات المضافة مقابل كل صفحة</span>
+    </div>
+    <select id="insertCount">
+      <option value="1" selected>صفحة واحدة (1)</option>
+      <option value="2">صفحتان (2)</option>
+      <option value="3">ثلاث صفحات (3)</option>
+      <option value="4">أربع صفحات (4)</option>
+    </select>
+
+    <div class="section-title">
+      <span>3. أبعاد الصفحة/الصورة المضافة</span>
+    </div>
+    <select id="sizeMode">
+      <option value="fit_width" selected>موازنة حجم العرض مع صفحات الـ PDF (مع حفظ أبعاد ودقة الصورة)</option>
+      <option value="original_pixels">أبعاد الصورة الأصلية 100% كما هي</option>
+      <option value="match_pdf">مطابقة عرض وطول صفحة الـ PDF بالكامل</option>
+    </select>
+  </div>
+
+  <button class="main-btn" id="processBtn" onclick="processPDFs()">بدء المعالجة والتحميل</button>
+
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
+  <div id="status">أضف ملف PDF واحد على الأقل للبدء</div>
+
+  <!-- إشعار التنزيل المباشر -->
+  <div id="downloadNotice" class="download-notice">
+    <div class="download-notice-title">✅ جاهز للتنزيل! اكتملت معالجة الملف بنجاح</div>
+    <div id="downloadMeta" class="download-notice-meta"></div>
+    <button type="button" class="download-btn" id="downloadNowBtn" onclick="triggerSavedDownload()">
+      ⬇️ تنزيل ملف الـ PDF الآن
+    </button>
+  </div>
+</div>
+
+<script>
+const { PDFDocument } = PDFLib;
+
+// نحتفظ بكائن File فقط بدلاً من تخزين ArrayBuffer الضخم في الذاكرة لتفادي انهيار المتصفح مع الملفات الكبيرة
+let pdfFilesQueue = []; // [{ file, name, pageCount, maxVisualWidth, fileSize }]
+let currentInsertMode = 'blank'; // 'blank' | 'image' | 'none'
+let selectedImageData = null; // { bytes, mimeType, width, height, name }
+let readyDownloadBlob = null;
+let readyDownloadUrl = null;
+let readyDownloadFilename = "merged_output.pdf";
+
+// دالة مساعدة لإعطاء المتصفح فرصة لتحديث الواجهة وتفريغ الذاكرة المؤقتة أثناء العمليات الثقيلة
+function yieldToUI() {
+  return new Promise(resolve => setTimeout(resolve, 0));
+}
+
+function formatFileSize(bytes) {
+  if (bytes < 1024 * 1024) {
+    return (bytes / 1024).toFixed(1) + " كيلوبايت";
+  }
+  return (bytes / (1024 * 1024)).toFixed(2) + " ميجابايت";
+}
+
+function hideDownloadNotice() {
+  const notice = document.getElementById('downloadNotice');
+  if (notice) notice.style.display = 'none';
+}
+
+// إدارة إضافة ملفات الـ PDF (مع دعم الملفات الكبيرة دون استهلاك مضاعف للذاكرة)
+async function handlePdfSelection(event) {
+  const files = Array.from(event.target.files);
+  if (!files.length) return;
+
+  hideDownloadNotice();
+  const status = document.getElementById('status');
+  const failedFiles = [];
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    status.innerText = `جاري فحص الملف (${i + 1} من ${files.length}): ${file.name}...`;
+    await yieldToUI();
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const doc = await PDFDocument.load(arrayBuffer, {
+        ignoreEncryption: true,
+        updateMetadata: false
+      });
+
+      const pages = doc.getPages();
+      let maxVisualWidth = 0;
+      for (let p = 0; p < pages.length; p++) {
+        const { visualWidth } = getVisualPageDimensions(pages[p]);
+        if (visualWidth > maxVisualWidth) {
+          maxVisualWidth = visualWidth;
+        }
+      }
+
+      pdfFilesQueue.push({
+        file,
+        name: file.name,
+        pageCount: doc.getPageCount(),
+        maxVisualWidth,
+        fileSize: file.size
+      });
+    } catch (err) {
+      failedFiles.push(`${file.name} (${err.message})`);
+    }
+  }
+
+  event.target.value = "";
+  renderFileList();
+
+  if (failedFiles.length > 0) {
+    status.innerText = `تعذر قراءة بعض الملفات: ${failedFiles.join(' ، ')}`;
+  } else {
+    status.innerText = "الملفات جاهزة للمعالجة.";
+  }
+}
+
+// عرض القائمة مع أزرار الترتيب والحذف
+function renderFileList() {
+  const listEl = document.getElementById('fileList');
+  const summaryEl = document.getElementById('totalSummary');
+  listEl.innerHTML = "";
+
+  const totalOriginalPages = pdfFilesQueue.reduce((acc, item) => acc + item.pageCount, 0);
+  summaryEl.innerText = pdfFilesQueue.length
+    ? `${pdfFilesQueue.length} ملفات (${totalOriginalPages} صفحة)`
+    : "";
+
+  pdfFilesQueue.forEach((item, index) => {
+    const row = document.createElement('div');
+    row.className = 'file-item';
+    row.innerHTML = `
+      <div class="file-info">
+        <span class="badge">${index + 1}</span>
+        <div>
+          <div class="file-name" title="${item.name}">${item.name}</div>
+          <div class="file-pages">${item.pageCount} صفحة • ${formatFileSize(item.fileSize || 0)}</div>
+        </div>
+      </div>
+      <div class="file-actions">
+        <button class="icon-btn" onclick="moveFile(${index}, -1)" ${index === 0 ? 'disabled' : ''} title="تحريك لأعلى">⬆️</button>
+        <button class="icon-btn" onclick="moveFile(${index}, 1)" ${index === pdfFilesQueue.length - 1 ? 'disabled' : ''} title="تحريك لأسفل">⬇️</button>
+        <button class="icon-btn delete" onclick="removeFile(${index})" title="حذف">✕</button>
+      </div>
+    `;
+    listEl.appendChild(row);
+  });
+}
+
+function moveFile(index, direction) {
+  const newIndex = index + direction;
+  if (newIndex < 0 || newIndex >= pdfFilesQueue.length) return;
+  const temp = pdfFilesQueue[index];
+  pdfFilesQueue[index] = pdfFilesQueue[newIndex];
+  pdfFilesQueue[newIndex] = temp;
+  hideDownloadNotice();
+  renderFileList();
+}
+
+function removeFile(index) {
+  pdfFilesQueue.splice(index, 1);
+  hideDownloadNotice();
+  renderFileList();
+}
+
+// التبديل بين (صفحة بيضاء / صورة من الألبوم / دمج فقط)
+function setInsertMode(mode) {
+  currentInsertMode = mode;
+  document.getElementById('optBlankCard').classList.toggle('active', mode === 'blank');
+  document.getElementById('optImageCard').classList.toggle('active', mode === 'image');
+  document.getElementById('optNoneCard').classList.toggle('active', mode === 'none');
+
+  document.getElementById('imagePickerContainer').style.display = (mode === 'image') ? 'block' : 'none';
+  document.getElementById('sizeModeContainer').style.display = (mode === 'none') ? 'none' : 'block';
+}
+
+// قراءة الصورة من الألبوم بكامل جودتها الخام
+async function handleImageSelection(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const preview = document.getElementById('imgPreview');
+  const meta = document.getElementById('imgMeta');
+  meta.innerText = "جاري قراءة الصورة بأعلى دقة...";
+
+  try {
+    const rawBuffer = await file.arrayBuffer();
+    const objectUrl = URL.createObjectURL(file);
+
+    const imgEl = new Image();
+    imgEl.onload = async () => {
+      preview.src = objectUrl;
+      preview.style.display = 'block';
+
+      // إذا كانت الصورة JPG أو PNG نحتفظ بالبايتات الخام 100% دون أي ضغط
+      if (file.type === 'image/jpeg' || file.type === 'image/jpg' || file.type === 'image/png') {
+        selectedImageData = {
+          bytes: rawBuffer,
+          mimeType: file.type,
+          width: imgEl.naturalWidth,
+          height: imgEl.naturalHeight,
+          name: file.name
+        };
+      } else {
+        // لصيغ الصور الأخرى (مثل WebP/HEIC) يتم تحويلها إلى PNG غير مضغوط بكامل الأبعاد
+        const canvas = document.createElement('canvas');
+        canvas.width = imgEl.naturalWidth;
+        canvas.height = imgEl.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(imgEl, 0, 0);
+        const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+        selectedImageData = {
+          bytes: await blob.arrayBuffer(),
+          mimeType: 'image/png',
+          width: imgEl.naturalWidth,
+          height: imgEl.naturalHeight,
+          name: file.name
+        };
+      }
+
+      meta.innerText = `الأبعاد الكاملة: ${imgEl.naturalWidth} × ${imgEl.naturalHeight} بكسل (جودة أصلية 100%)`;
+    };
+    imgEl.src = objectUrl;
+  } catch (err) {
+    meta.innerText = "حدث خطأ أثناء قراءة الصورة: " + err.message;
+  }
+}
+
+// حساب العرض والطول الفعلي للصفحة مع مراعاة دوران الصفحات (Landscape / Portrait)
+function getVisualPageDimensions(page) {
+  const { width, height } = page.getSize();
+  const rotation = ((page.getRotation().angle % 360) + 360) % 360;
+  const isRotated90or270 = (rotation === 90 || rotation === 270);
+  return {
+    visualWidth: isRotated90or270 ? height : width,
+    visualHeight: isRotated90or270 ? width : height
+  };
+}
+
+// موازنة عرض صفحة PDF لتطابق العرض الأكبر مع الحفاظ التام على النسبة والدقة
+function scalePdfPageToTargetWidth(page, targetVisualWidth) {
+  const { visualWidth } = getVisualPageDimensions(page);
+  if (!visualWidth) return;
+
+  const factor = targetVisualWidth / visualWidth;
+  if (Math.abs(factor - 1) <= 0.0001) return;
+
+  try {
+    if (typeof page.scale === 'function') {
+      page.scale(factor, factor);
+      return;
+    }
+  } catch (e) {
+    // في حال تعذر page.scale ننتقل للطريقة اليدوية الآمنة
+  }
+
+  const mb = page.getMediaBox();
+  page.setMediaBox(mb.x * factor, mb.y * factor, mb.width * factor, mb.height * factor);
+
+  try {
+    const cb = page.getCropBox();
+    if (cb) page.setCropBox(cb.x * factor, cb.y * factor, cb.width * factor, cb.height * factor);
+  } catch (e) {}
+
+  try {
+    page.scaleContent(factor, factor);
+  } catch (e) {}
+}
+
+// تنزيل الملف كإشعار تنزيل مباشر (attachment) دون فتحه في صفحة جديدة أو استبدال الصفحة الحالية
+async function triggerSavedDownload() {
+  if (!readyDownloadBlob && !readyDownloadUrl) return;
+
+  // محاولة استخدام واجهة حفظ الملفات المباشرة في المتصفحات الداعمة إن توفرت
+  if (window.showSaveFilePicker && readyDownloadBlob) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: readyDownloadFilename,
+        types: [{
+          description: 'PDF Document',
+          accept: { 'application/pdf': ['.pdf'] }
+        }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(readyDownloadBlob);
+      await writable.close();
+      return;
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+      // إذا لم تنجح (مثل داخل إطار معزول أو هاتف) نكمل بطريقة التنزيل المباشر
+    }
+  }
+
+  if (!readyDownloadUrl && readyDownloadBlob) {
+    readyDownloadUrl = URL.createObjectURL(readyDownloadBlob);
+  }
+
+  const link = document.createElement("a");
+  link.style.display = "none";
+  link.href = readyDownloadUrl;
+  link.setAttribute("download", readyDownloadFilename);
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  setTimeout(() => {
+    if (link.parentNode) link.parentNode.removeChild(link);
+  }, 1500);
+}
+
+// المعالجة الرئيسية (محسنة للملفات الكبيرة جداً لمنع نفاد الذاكرة أو تجميد المتصفح)
+async function processPDFs() {
+  const status = document.getElementById('status');
+  const btn = document.getElementById('processBtn');
+  const progressWrap = document.getElementById('progressWrap');
+  const progressBar = document.getElementById('progressBar');
+  const sizeMode = document.getElementById('sizeMode').value;
+  const insertCount = parseInt(document.getElementById('insertCount').value, 10) || 1;
+  const balanceWidths = document.getElementById('balancePdfWidths').checked;
+
+  if (!pdfFilesQueue.length) {
+    status.innerText = "يرجى إضافة ملف PDF واحد على الأقل أولاً.";
+    return;
+  }
+
+  if (currentInsertMode === 'image' && !selectedImageData) {
+    status.innerText = "يرجى اختيار صورة من الألبوم أولاً أو التبديل إلى خيار الصفحة البيضاء.";
+    return;
+  }
+
+  try {
+    btn.disabled = true;
+    hideDownloadNotice();
+    progressWrap.style.display = 'block';
+    progressBar.style.width = '2%';
+
+    // تنظيف أي رابط تنزيل سابق من الذاكرة
+    if (readyDownloadUrl) {
+      URL.revokeObjectURL(readyDownloadUrl);
+      readyDownloadUrl = null;
+    }
+    readyDownloadBlob = null;
+
+    // 1. حساب العرض الأكبر من البيانات المحفوظة مسبقاً دون إعادة تحميل جميع الملفات معاً في الذاكرة
+    let maxGlobalWidth = 0;
+    let totalSourcePages = 0;
+    for (const item of pdfFilesQueue) {
+      if (item.maxVisualWidth > maxGlobalWidth) {
+        maxGlobalWidth = item.maxVisualWidth;
+      }
+      totalSourcePages += item.pageCount;
+    }
+
+    const outDoc = await PDFDocument.create();
+
+    // 2. تضمين الصورة مرة واحدة فقط في ذاكرة الـ PDF (إذا كان وضع الصورة مفعلاً)
+    let embeddedImg = null;
+    if (currentInsertMode === 'image' && selectedImageData) {
+      status.innerText = "جاري تضمين الصورة بجودتها الخام الكاملة...";
+      await yieldToUI();
+      if (selectedImageData.mimeType === 'image/png') {
+        embeddedImg = await outDoc.embedPng(selectedImageData.bytes);
+      } else {
+        try {
+          embeddedImg = await outDoc.embedJpg(selectedImageData.bytes);
+        } catch (e) {
+          embeddedImg = await outDoc.embedPng(selectedImageData.bytes);
+        }
+      }
+    }
+
+    // 3. معالجة كل ملف على حدة وعلى دفعات (Chunks) لمنع امتلاء الذاكرة مع الملفات الضخمة
+    let processedSourcePages = 0;
+    const CHUNK_SIZE = 20;
+
+    for (let d = 0; d < pdfFilesQueue.length; d++) {
+      const item = pdfFilesQueue[d];
+      status.innerText = `جاري قراءة الملف (${d + 1} من ${pdfFilesQueue.length}): ${item.name}...`;
+      await yieldToUI();
+
+      const fileBuffer = await item.file.arrayBuffer();
+      const srcDoc = await PDFDocument.load(fileBuffer, {
+        ignoreEncryption: true,
+        updateMetadata: false
+      });
+
+      const totalPagesInDoc = srcDoc.getPageCount();
+
+      for (let startIdx = 0; startIdx < totalPagesInDoc; startIdx += CHUNK_SIZE) {
+        const endIdx = Math.min(startIdx + CHUNK_SIZE, totalPagesInDoc);
+        const batchIndices = [];
+        for (let idx = startIdx; idx < endIdx; idx++) {
+          batchIndices.push(idx);
+        }
+
+        const copiedPages = await outDoc.copyPages(srcDoc, batchIndices);
+
+        for (let i = 0; i < copiedPages.length; i++) {
+          const page = copiedPages[i];
+
+          // موازنة عرض الصفحة الحالية مع الصفحة الأعرض في جميع الملفات
+          if (balanceWidths && maxGlobalWidth > 0) {
+            scalePdfPageToTargetWidth(page, maxGlobalWidth);
+          }
+
+          outDoc.addPage(page);
+          processedSourcePages++;
+
+          // الحصول على أبعاد الصفحة بعد الموازنة
+          const { visualWidth: pdfW, visualHeight: pdfH } = getVisualPageDimensions(page);
+
+          // إدراج صفحة بيضاء أو صورة بعد الصفحة الحالية (حسب العدد المختار)
+          if (currentInsertMode === 'blank') {
+            for (let c = 0; c < insertCount; c++) {
+              outDoc.addPage([pdfW, pdfH]);
+            }
+          } else if (currentInsertMode === 'image' && embeddedImg) {
+            const imgW = embeddedImg.width;
+            const imgH = embeddedImg.height;
+            let targetW, targetH;
+
+            if (sizeMode === 'fit_width') {
+              targetW = pdfW;
+              targetH = (imgH / imgW) * pdfW;
+            } else if (sizeMode === 'original_pixels') {
+              targetW = imgW;
+              targetH = imgH;
+            } else {
+              targetW = pdfW;
+              targetH = pdfH;
+            }
+
+            for (let c = 0; c < insertCount; c++) {
+              const imgPage = outDoc.addPage([targetW, targetH]);
+              imgPage.drawImage(embeddedImg, {
+                x: 0,
+                y: 0,
+                width: targetW,
+                height: targetH
+              });
+            }
+          }
+        }
+
+        const percent = Math.min(90, Math.round((processedSourcePages / Math.max(1, totalSourcePages)) * 88));
+        progressBar.style.width = `${percent}%`;
+        status.innerText = `جاري المعالجة: الصفحة ${processedSourcePages} من ${totalSourcePages} (الملف ${d + 1}/${pdfFilesQueue.length})...`;
+        await yieldToUI();
+      }
+    }
+
+    status.innerText = "جاري حفظ وتجهيز الملف النهائي (قد يستغرق لحظات للملفات الكبيرة)...";
+    progressBar.style.width = '95%';
+    await yieldToUI();
+
+    // استخدام useObjectStreams: false يسرّع الحفظ بشكل كبير ويمنع نفاد الذاكرة في الملفات الكبيرة
+    const finalPdfBytes = await outDoc.save({ useObjectStreams: false });
+    const finalPageCount = outDoc.getPageCount();
+
+    // استخدام application/octet-stream يجبر المتصفح على إظهار إشعار التنزيل بدلاً من فتح صفحة عرض الـ PDF
+    readyDownloadBlob = new Blob([finalPdfBytes], { type: "application/octet-stream" });
+    readyDownloadUrl = URL.createObjectURL(readyDownloadBlob);
+
+    progressBar.style.width = '100%';
+    status.innerText = `اكتمل بنجاح! إجمالي صفحات الملف الجديد: ${finalPageCount} صفحة.`;
+
+    // إظهار إشعار التنزيل داخل الصفحة مع زر التنزيل المباشر
+    const downloadMeta = document.getElementById('downloadMeta');
+    downloadMeta.innerText = `عدد الصفحات: ${finalPageCount} صفحة • الحجم: ${formatFileSize(finalPdfBytes.byteLength)}`;
+    document.getElementById('downloadNotice').style.display = 'block';
+
+    // إطلاق إشعار تنزيل المتصفح تلقائياً أيضاً
+    const autoLink = document.createElement("a");
+    autoLink.style.display = "none";
+    autoLink.href = readyDownloadUrl;
+    autoLink.setAttribute("download", readyDownloadFilename);
+    autoLink.rel = "noopener";
+    document.body.appendChild(autoLink);
+    autoLink.click();
+    setTimeout(() => {
+      if (autoLink.parentNode) autoLink.parentNode.removeChild(autoLink);
+    }, 1500);
+
+  } catch (err) {
+    status.innerText = "حدث خطأ أثناء المعالجة: " + err.message;
+  } finally {
+    btn.disabled = false;
+    setTimeout(() => {
+      progressWrap.style.display = 'none';
+      progressBar.style.width = '0%';
+    }, 1200);
+  }
+}
+</script>
+
+</body>
+</html>
